@@ -19,7 +19,8 @@
                 </div>
             </div>
             <div class="twoBox">
-                <div class="checkbox-item" v-for="(item, index) in checkboxItems" :key="index" @click="selectCheckbox(index)">
+                <div class="checkbox-item" v-for="(item, index) in checkboxItems" :key="index"
+                    @click="selectCheckbox(index)">
                     <span>{{ item.label }}</span>
                     <img :src="item.active ? activeImg : topimg" alt="">
                 </div>
@@ -77,15 +78,22 @@ import { callUIInteraction, addResponseEventListener } from "../../module/webrtc
 import topimg from '../../assets/img/newimg/资源 7.png';
 import activeImg from '../../assets/img/newimg/资源 6.png';
 
-const dimensionvalue = ref(true);
+const dimensionvalue = ref(true); // true 表示二维，false 表示三维
 const showdimension = ref(true);
-const showWaves = ref(false);
+const showWaves = ref(true);
+const showBottom = ref(false);
 const showSubmerge = ref(false);
 const MaxValue = ref(0);
 const MinValue = ref(0);
 const selectedScenario = ref('waves');
+const titlevalue = ref('海浪情景');
+const Datatime = ref();
+const Lon = ref();
+const Lat = ref();
+const Data = ref([]);
+const showWaveheight = ref(false)
+const Waveheight = ref('')
 
-// Checkbox items data
 const checkboxItems = ref([
     { label: '10年一遇', active: true }, // 默认选择10年一遇
     { label: '20年一遇', active: false },
@@ -95,25 +103,73 @@ const checkboxItems = ref([
     { label: '1000年一遇', active: false }
 ]);
 
+const selectedValue = ref('10'); // 默认选择的值
+
 const selectScenario = (scenario) => {
     selectedScenario.value = scenario;
     showdimension.value = (scenario === 'waves');
 
-    // 每次选择情景时，重置复选框状态
+    // 根据选择的情景显示或隐藏 colorbar
+    if (scenario === 'waves') {
+        const dimension = dimensionvalue.value ? '二维' : '三维';
+        showWaves.value = true;
+        showSubmerge.value = false;
+        titlevalue.value = '海浪情景';
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `重现期情景库`,
+            ChildrenModule: `${selectedScenario.value === 'waves' ? '海浪情景' : '淹没情景'}`,
+            State: `10`,
+            Dimension: dimension
+        });
+    } else if (scenario === 'submerge') {
+        showWaves.value = false;
+        showSubmerge.value = true;
+        titlevalue.value = '淹没情景';
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `重现期情景库`,
+            ChildrenModule: `${selectedScenario.value === 'waves' ? '海浪情景' : '淹没情景'}`,
+            State: `10`,
+        });
+    }
     resetCheckboxes();
 };
-
 const resetCheckboxes = () => {
     checkboxItems.value.forEach((item, index) => {
         item.active = (index === 0); // 选择 "10年一遇"
     });
+    selectedValue.value = checkboxItems.value[0].label.replace('年一遇', ''); // 更新默认选择的值
 };
 
 const selectCheckbox = (index) => {
+    showBottom.value = false; // 隐藏底部内容
     // 将所有复选框的 active 状态设置为 false
     checkboxItems.value.forEach((item, i) => {
         item.active = (i === index); // 只有被点击的项设置为 true
     });
+    // 更新选择的值
+    selectedValue.value = checkboxItems.value[index].label.replace('年一遇', '');
+    const dimension = dimensionvalue.value ? '二维' : '三维';
+
+    // 调用接口，根据情景决定是否传递 Dimension
+    if (selectedScenario.value === 'waves') {
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `重现期情景库`,
+            ChildrenModule: '海浪情景',
+            State: `${selectedValue.value}`,
+            Dimension: `${dimension}`
+        });
+    } else {
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `重现期情景库`,
+            ChildrenModule: '淹没情景',
+            State: `${selectedValue.value}`
+        });
+    }
+
 };
 
 const getdimension = (e) => {
@@ -123,28 +179,55 @@ const getdimension = (e) => {
         showWaves.value = false;
         showBottom.value = false;
     }
+    const dimension = dimensionvalue.value ? '二维' : '三维';
+    callUIInteraction({
+        ModuleName: '风险评估',
+        FunctionName: `重现期情景库`,
+        ChildrenModule: `${selectedScenario.value === 'waves' ? '海浪情景' : '淹没情景'}`,
+        State: `${selectedValue.value}`,
+        Dimension: dimension
+    });
 };
 
 const myHandleResponseFunction = (data) => {
     const datajson = JSON.parse(data);
+    console.log(data);
     if (datajson.Function === '报错') {
         ElMessage({
             message: datajson.Type,
             type: 'warning',
         });
-        return;
+        return
+    } else if (datajson.Function === '假设分析海浪情景色带范围' || datajson.Function === '假设分析淹没情景色带范围') {
+        MaxValue.value = datajson.MaxValue;
+        MinValue.value = datajson.MinValue;
+    } else if (datajson.Function === '假设分析海浪情景点击查询' || datajson.Function === '假设分析淹没情景点击查询') {
+        if (datajson.Function === '假设分析淹没情景点击查询') {
+            showWaveheight.value = true;
+            Waveheight.value = datajson.Zeta.toFixed(2);
+        } else {
+            showWaveheight.value = false;
+        }
+        Datatime.value = datajson.DataTime;
+        Lon.value = datajson.Lon;
+        Lat.value = datajson.Lat;
+        Data.value = datajson.Data;
+        showBottom.value = true;
     }
-};
+}
 
 onMounted(() => {
+    const initialDimension = dimensionvalue.value ? '二维' : '三维';
+    callUIInteraction({
+        ModuleName: '风险评估',
+        FunctionName: `重现期情景库`,
+        ChildrenModule: `${selectedScenario.value === 'waves' ? '海浪情景' : '淹没情景'}`,
+        State: `${selectedValue.value}`,
+        Dimension: `${initialDimension}`
+    });
     addResponseEventListener("handle_responses", myHandleResponseFunction);
 });
 </script>
-
-
-
-
-
 
 <style scoped>
 .leftbox {
@@ -318,7 +401,8 @@ onMounted(() => {
     color: #B7CFFC;
     cursor: pointer;
 }
-.twoBox{
+
+.twoBox {
     height: 35vh;
     width: 100%;
     display: flex;
@@ -326,7 +410,8 @@ onMounted(() => {
     justify-content: space-evenly;
     align-items: center;
 }
-.checkbox-item{
+
+.checkbox-item {
     width: 20vh;
     height: 4vh;
     background-image: url('../../assets/img/newimg/资源 5.png');
@@ -337,8 +422,60 @@ onMounted(() => {
     color: #B7CFFC;
     cursor: pointer;
 }
-.checkbox-item span{
+
+.checkbox-item span {
     width: 9.5vh;
     margin-left: 3vh;
+}
+.custom-table {
+    border-collapse: collapse;
+    width: 100%;
+    color: #b7cffc;
+    margin-top: 10px;
+    margin-bottom: 20px;
+}
+
+.custom-table th,
+.custom-table td {
+    border: 1px solid #416491;
+    padding: 8px;
+    text-align: center;
+    height: 38px;
+    width: 50%;
+}
+#WaveheightEcharts {
+    padding: 0 20px 0 20px;
+    width: 400px;
+    /* height: 240px; */
+    margin-top: 5px;
+}
+.leftbox-bottom {
+    position: absolute;
+    background-image: url('../../assets/img/框.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    width: 400px;
+    /* height: 300px; */
+    top: 280px;
+    right: 15px;
+}
+
+.leftbox-top-title-bottom {
+    width: 400px;
+    height: 45px;
+    background-image: url('../../assets/img/标题背景.png');
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    line-height: 45px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.leftbox-top-title-bottom span {
+    /* margin-left: 40px; */
+    font-weight: 600;
+    color: #B7CFFC;
+    font-size: 20px;
+    letter-spacing: 5px;
 }
 </style>
