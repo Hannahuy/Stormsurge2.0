@@ -29,7 +29,7 @@
             <div :style="adjustedStyle">
                 <span class="bottombox-slider-span">{{ formattedTime }}</span>
             </div>
-            <el-slider :step="10800000" v-model="timePlay" :show-tooltip="false" :min="min" :max="max" :marks="marks"
+            <el-slider :step="3600000" v-model="timePlay" :show-tooltip="false" :min="min" :max="max" :marks="marks"
                 style="position: relative; z-index: 1; width: 1600px" @change="gettimePlay">
             </el-slider>
         </div>
@@ -86,11 +86,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import * as echarts from "echarts";
 import dayjs from "dayjs";
 import { callUIInteraction, addResponseEventListener, } from "../../module/webrtcVideo/webrtcVideo.js";
-import tabledataJson from "/public/data/实时监测.json";
 import { ElMessage } from 'element-plus'
 import imgshow from '../../assets/img/浮标.png'
 import imageshow from '../../assets/img/浮标 (1).png'
@@ -137,7 +136,7 @@ const Backoff = () => {
     if (isAdjustingTime.value) return;
     isAdjustingTime.value = true;
     const previousTime = timePlay.value;
-    timePlay.value = dayjs(previousTime).subtract(3, 'hour').valueOf();
+    timePlay.value = dayjs(previousTime).subtract(1, 'hour').valueOf();
 
     // 检查是否达到最小值
     if (timePlay.value < min.value) {
@@ -147,10 +146,29 @@ const Backoff = () => {
         timePick.value = dayjs(timePick.value).subtract(1, 'day').toDate();
         timePlay.value = max.value; // 加满进度条，设置为最大值
     }
-    // console.log(Tidedata.value);
-    // console.log(Wavedata.value);
+
+    // 格式化 timePlay 为 YYYYMMDDHH
+    const formattedTimePlay = dayjs(timePlay.value).format('YYYYMMDDHH');
+    console.log(formattedTimePlay); // 打印格式化后的值
+
+    // 查找并打印对应的值
+    const tideItem = Tidedata.value.find(item => item.time === formattedTimePlay);
+    const waveItem = Wavedata.value.find(item => item.time === formattedTimePlay);
+
+    if (tideItem && waveItem) {
+        callUIInteraction({
+            ModuleName: '实时感知',
+            FunctionName: `实时感知时间轴`,
+            Waterhigh: tideItem.value1,
+            Wavehigh: waveItem.v
+        });
+    } else {
+        // ElMessage.warning('当前时刻无数据');
+    }
     isAdjustingTime.value = false;
 };
+
+
 // 暂停/播放
 let previousPlayState = "";
 let intervalTime = null;
@@ -175,7 +193,8 @@ const Fastforward = () => {
     if (isAdjustingTime.value) return;
     isAdjustingTime.value = true;
     const previousTime = timePlay.value;
-    timePlay.value = dayjs(previousTime).add(3, 'hour').valueOf();
+    timePlay.value = dayjs(previousTime).add(1, 'hour').valueOf();
+
     // 检查是否达到最大值
     if (timePlay.value > max.value) {
         isJumpingDay.value = true; // 标记为日期跳跃
@@ -184,8 +203,28 @@ const Fastforward = () => {
         timePick.value = dayjs(timePick.value).add(1, 'day').toDate();
         timePlay.value = min.value; // 清零进度条
     }
+
+    // 格式化 timePlay 为 YYYYMMDDHH
+    const formattedTimePlay = dayjs(timePlay.value).format('YYYYMMDDHH');
+    console.log(formattedTimePlay); // 打印格式化后的值
+
+    // 查找并打印对应的值
+    const tideItem = Tidedata.value.find(item => item.time === formattedTimePlay);
+    const waveItem = Wavedata.value.find(item => item.time === formattedTimePlay);
+
+    if (tideItem && waveItem) {
+        callUIInteraction({
+            ModuleName: '实时感知',
+            FunctionName: `实时感知时间轴`,
+            Waterhigh: tideItem.value1,
+            Wavehigh: waveItem.v
+        });
+    } else {
+        // ElMessage.warning('当前时刻无数据');
+    }
     isAdjustingTime.value = false;
 };
+
 
 const min = ref(dayjs(timePick.value).startOf("day").valueOf());
 // 将 max 设置为当天的23点
@@ -292,11 +331,6 @@ const Tideinit = () => {
         TideEchartsdata.dispose();
     }
     TideEchartsdata = echarts.init(salinityChartElement);
-
-    // 从 JSON 数据中提取 x 和 y 轴的数据
-    const updatedTimes = tabledataJson.map(item => item.Updated);
-    const waterLevels = tabledataJson.map(item => parseFloat(item.waterlevel));
-
     const options = {
         tooltip: {
             trigger: 'axis',
@@ -405,7 +439,8 @@ const Waveheightinit = () => {
             },
             splitLine: {
                 show: false
-            }
+            },
+            max: Math.max(...waveyData.value) + 0.3 // 设置最大值为当前最大值加0.5
         },
         series: [
             {
@@ -416,7 +451,6 @@ const Waveheightinit = () => {
                 stack: "Total",
                 smooth: true,
                 lineStyle: { width: 0 },
-                showSymbol: false,
                 areaStyle: {
                     opacity: 0.8,
                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -630,63 +664,82 @@ const wavexData = ref();
 const waveyData = ref();
 
 const getLastWaveData = () => {
-    const currentDate = new Date();
-    const startDate = new Date(currentDate);
-    startDate.setDate(currentDate.getDate() - 1); // 往前推一天
-    const staUtcTime = formatDate(startDate);
-    const endUtcTime = formatDate(currentDate);
-    const message = JSON.stringify({
-        lon: 108.050537109375,
-        lat: 18.302380604025146,
-        type: 'wave',
-        staUtcTime: staUtcTime,
-        endUtcTime: endUtcTime
-    });
-    axios.post('https://www.oceanread.com/YHYBService/v1.4.0/WS_DataQuery.asmx/QueryDataFromFull', { message }, {
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
-    })
-        .then(res => {
-            const data = res.data.data;
-            if (data && data.length > 0) {
-                Wavedata.value = data;
-                // 如果数据长度为9，则只取前8条数据
-                const processedData = data.length === 9 ? data.slice(0, 8) : data;
-                maxWaveHeight.value = Math.max(...processedData.map(item => item.v));
-                minWaveHeight.value = Math.min(...processedData.map(item => item.v));
-                const maxIndex = processedData.findIndex(item => item.v === maxWaveHeight.value);
-                const minIndex = processedData.findIndex(item => item.v === minWaveHeight.value);
-                const maxTime = new Date(startDate.getTime() + maxIndex * 3 * 60 * 60 * 1000);
-                const minTime = new Date(startDate.getTime() + minIndex * 3 * 60 * 60 * 1000);
-                wavemaxDataTime.value = formatDisplayDate(maxTime);
-                waveminDataTime.value = formatDisplayDate(minTime);
-                let time = new Date(startDate);
-                wavexData.value = []; // 清空之前的数据
-                waveyData.value = []; // 清空之前的数据
-
-                data.forEach(item => {
-                    wavexData.value.push(formatDisplayDate(time)); // 添加到 wavexData
-                    waveyData.value.push(item.v); // 添加到 waveyData
-                    time.setHours(time.getHours() + 3); // 增加3小时
-                });
-                Waveheightinit(); // 初始化图表
-            } else {
-                maxWaveHeight.value = null;
-                minWaveHeight.value = null;
-                wavemaxDataTime.value = null;
-                waveminDataTime.value = null;
+    return new Promise((resolve, reject) => {
+        const currentDate = new Date();
+        const startDate = new Date(currentDate);
+        startDate.setDate(currentDate.getDate() - 1); // 往前推一天
+        const staUtcTime = formatDate(startDate);
+        const endUtcTime = formatDate(currentDate);
+        const message = JSON.stringify({
+            lon: 108.050537109375,
+            lat: 18.302380604025146,
+            type: 'wave',
+            staUtcTime: staUtcTime,
+            endUtcTime: endUtcTime
+        });
+        axios.post('https://www.oceanread.com/YHYBService/v1.4.0/WS_DataQuery.asmx/QueryDataFromFull', { message }, {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
         })
-        .catch(error => {
-            console.error(error);
-        });
+            .then(res => {
+                const data = res.data.data;
+                if (data && data.length > 0) {
+                    // 如果数据长度为9，则只取前8条数据
+                    // const processedData = data.length === 9 ? data.slice(0, 8) : data;
+                    const processedData = data;
+
+                    // 获取昨天的当前时间
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const baseTime = `${yesterday.getFullYear()}${String(yesterday.getMonth() + 1).padStart(2, '0')}${String(yesterday.getDate()).padStart(2, '0')}${String(yesterday.getHours()).padStart(2, '0')}`;
+
+                    // 为每个数据项添加 time 属性
+                    processedData.forEach((item, index) => {
+                        const hourOffset = index * 3; // 每个数据项间隔3小时
+                        const newTime = new Date(yesterday);
+                        newTime.setHours(newTime.getHours() + hourOffset);
+                        item.time = `${newTime.getFullYear()}${String(newTime.getMonth() + 1).padStart(2, '0')}${String(newTime.getDate()).padStart(2, '0')}${String(newTime.getHours()).padStart(2, '0')}`;
+                    });
+                    Wavedata.value = processedData;
+                    maxWaveHeight.value = Math.max(...processedData.map(item => item.v));
+                    minWaveHeight.value = Math.min(...processedData.map(item => item.v));
+                    const maxIndex = processedData.findIndex(item => item.v === maxWaveHeight.value);
+                    const minIndex = processedData.findIndex(item => item.v === minWaveHeight.value);
+                    const maxTime = new Date(startDate.getTime() + maxIndex * 3 * 60 * 60 * 1000);
+                    const minTime = new Date(startDate.getTime() + minIndex * 3 * 60 * 60 * 1000);
+                    wavemaxDataTime.value = formatDisplayDate(maxTime);
+                    waveminDataTime.value = formatDisplayDate(minTime);
+                    let time = new Date(startDate);
+                    wavexData.value = []; // 清空之前的数据
+                    waveyData.value = []; // 清空之前的数据
+
+                    data.forEach(item => {
+                        wavexData.value.push(formatDisplayDate(time)); // 添加到 wavexData
+                        waveyData.value.push(item.v); // 添加到 waveyData
+                        time.setHours(time.getHours() + 3); // 增加3小时
+                    });
+                    Waveheightinit(); // 初始化图表
+                } else {
+                    maxWaveHeight.value = null;
+                    minWaveHeight.value = null;
+                    wavemaxDataTime.value = null;
+                    waveminDataTime.value = null;
+                }
+                resolve()
+            })
+            .catch(error => {
+                console.error(error);
+                reject()
+            });
+    });
+
 };
 
 const xData7 = ref();
 const yData7 = ref();
 
-const get7DayWaveData = () => {
+const get7DayWaveData = async () => {
     const currentDate = new Date();
     const startDate = new Date(currentDate);
     startDate.setDate(currentDate.getDate() - 7); // 往前推一周
@@ -725,74 +778,85 @@ const get7DayWaveData = () => {
                 leftbottom(); // 初始化图表
             }
             loading.value.close();
+            return
         })
         .catch(error => {
             console.error(error);
+            return
         });
 };
 const tidexData = ref();
 const tideyData = ref();
 const getTidedata = () => {
-    const currentDate = new Date();
-    const startDate = new Date(currentDate);
-    startDate.setDate(currentDate.getDate() - 1); // 往前推一天
-    const staUtcTime = formatDate(startDate);
-    const endUtcTime = formatDate(currentDate);
-    const data = {
-        dataType: 'BH_crt',
-        endUtcTimeStr: endUtcTime,
-        lat: 36.04254778378739,
-        lon: 120.37788381113283,
-        startUtcTimeStr: staUtcTime,
-    }
-    axios.post('http://www.oceanread.com/QueryData/WS_DataQuery.asmx/QueryDataFromFull', data).then((res) => {
-        const data = res.data.d.resultJsonArray;
-        if (data && data.length > 0) {
-            Tidedata.value = data;
-            // 如果数据长度为9，则只取前8条数据
-            const processedData = data.length === 9 ? data.slice(0, 8) : data;
-            maxTideHeight.value = Math.max(...processedData.map(item => item.value1));
-            minTideHeight.value = Math.min(...processedData.map(item => item.value1));
-            const maxIndex = processedData.findIndex(item => item.value1 === maxTideHeight.value);
-            const minIndex = processedData.findIndex(item => item.value1 === minTideHeight.value);
-            const maxTime = new Date(startDate.getTime() + maxIndex * 3 * 60 * 60 * 1000);
-            const minTime = new Date(startDate.getTime() + minIndex * 3 * 60 * 60 * 1000);
-            tidemaxDataTime.value = formatDisplayDate(maxTime);
-            tideminDataTime.value = formatDisplayDate(minTime);
-            let time = new Date(startDate);
-            tidexData.value = []; // 清空之前的数据
-            tideyData.value = []; // 清空之前的数据
-            data.forEach(item => {
-                tidexData.value.push(formatDisplayDate(time)); // 添加到 tidexData
-                tideyData.value.push(item.value1); // 添加到 tideyData
-                time.setHours(time.getHours() + 3); // 增加3小时
-            });
-            Tideinit(); // 初始化图表
-        } else {
-            maxTideHeight.value = null;
-            minTideHeight.value = null;
-            tidemaxDataTime.value = null;
-            tideminDataTime.value = null;
+    return new Promise((resolve, reject) => {
+        const currentDate = new Date();
+        const startDate = new Date(currentDate);
+        startDate.setDate(currentDate.getDate() - 1); // 往前推一天
+        const staUtcTime = formatDate(startDate);
+        const endUtcTime = formatDate(currentDate);
+        const data = {
+            dataType: 'BH_crt',
+            endUtcTimeStr: endUtcTime,
+            lat: 36.04254778378739,
+            lon: 120.37788381113283,
+            startUtcTimeStr: staUtcTime,
         }
+        axios.post('http://www.oceanread.com/QueryData/WS_DataQuery.asmx/QueryDataFromFull', data).then((res) => {
+            const data = res.data.d.resultJsonArray;
+            if (data && data.length > 0) {
+                // 如果数据长度为9，则只取前8条数据
+                // const processedData = data.length === 9 ? data.slice(0, 8) : data;
+                const processedData = data;
+                Tidedata.value = processedData;
+                maxTideHeight.value = Math.max(...processedData.map(item => item.value1));
+                minTideHeight.value = Math.min(...processedData.map(item => item.value1));
+                const maxIndex = processedData.findIndex(item => item.value1 === maxTideHeight.value);
+                const minIndex = processedData.findIndex(item => item.value1 === minTideHeight.value);
+                const maxTime = new Date(startDate.getTime() + maxIndex * 3 * 60 * 60 * 1000);
+                const minTime = new Date(startDate.getTime() + minIndex * 3 * 60 * 60 * 1000);
+                tidemaxDataTime.value = formatDisplayDate(maxTime);
+                tideminDataTime.value = formatDisplayDate(minTime);
+                let time = new Date(startDate);
+                tidexData.value = []; // 清空之前的数据
+                tideyData.value = []; // 清空之前的数据
+                data.forEach(item => {
+                    tidexData.value.push(formatDisplayDate(time)); // 添加到 tidexData
+                    tideyData.value.push(item.value1); // 添加到 tideyData
+                    time.setHours(time.getHours() + 3); // 增加3小时
+                });
+                Tideinit(); // 初始化图表
+            } else {
+                maxTideHeight.value = null;
+                minTideHeight.value = null;
+                tidemaxDataTime.value = null;
+                tideminDataTime.value = null;
+            }
+            resolve()
+        }, () => {
+            reject()
+        })
     })
+
 }
-onMounted(() => {
+const forUEmessage = () => {
+    callUIInteraction({
+        ModuleName: '实时感知',
+        FunctionName: `实时感知时间轴`,
+        Waterhigh: Wavedata.value[Wavedata.value.length - 1].v,
+        Wavehigh: Tidedata.value[Tidedata.value.length - 1].value1
+    });
+}
+onMounted(async () => {
     loading.value = ElLoading.service({
         lock: true,
         text: '加载中...',
         background: 'rgba(0, 0, 0, 0.7)',
     })
     righttop();
-    getTidedata();
-    getLastWaveData();
-    get7DayWaveData();
-    callUIInteraction({
-        ModuleName: '实时感知',
-        FunctionName: `实时感知时间轴`,
-        Waterhigh: tabledataJson[0].waterlevel,
-        Wavehigh: tabledataJson[0].Waveheight
-    });
-    console.log('实时感知', `实时感知时间轴`, tabledataJson[0].waterlevel, tabledataJson[0].Waveheight);
+    await getTidedata();
+    await getLastWaveData();
+    await get7DayWaveData();
+    forUEmessage();
 })
 onBeforeUnmount(() => {
     if (TideEchartsdata) {
