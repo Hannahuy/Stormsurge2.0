@@ -139,7 +139,14 @@ const activePlay = ref("");
 const isDisabled = ref(false);
 
 const predictionType = computed(() => {
-    return activeButton.value === 'wave' ? '海浪预测时间轴' : '潮位预测时间轴';
+    if (activeButton.value === 'wave') {
+        return '海浪预测时间轴';
+    } else if (activeButton.value === 'tide') {
+        return '潮位预测时间轴';
+    } else if (activeButton.value === 'weather') {
+        return '气象预测时间轴';
+    }
+    return ''; // 默认返回空字符串
 });
 const isProgrammaticDateChange = ref(false);
 
@@ -300,6 +307,7 @@ watch(timePlay, (newVal) => {
                 FunctionName: predictionType.value,
                 Time: dayjs(timePlay.value).format('YYYY-MM-DD HH:mm:ss')
             });
+            console.log('模拟预测',predictionType.value,dayjs(timePlay.value).format('YYYY-MM-DD HH:mm:ss'));
         }
     }
     if (currentTime.isSame(dayjs(max.value))) {

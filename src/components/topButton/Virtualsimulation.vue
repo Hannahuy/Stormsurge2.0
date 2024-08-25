@@ -13,10 +13,6 @@
                     @click="selectScenario('submerge')">
                     <span>淹没情景</span>
                 </div>
-                <div class="switchbox" v-if="showdimension">
-                    <el-switch v-model="dimensionvalue" class="ml-2" inline-prompt active-text="二维" inactive-text="三维"
-                        @change="getdimension" />
-                </div>
             </div>
             <div class="twoBox">
                 <div class="checkbox-item" v-for="(item, index) in checkboxItems" :key="index"
@@ -69,6 +65,10 @@
                 </tr>
             </table>
         </div>
+    </div>
+    <div class="switchbox" v-if="showdimension">
+        <el-switch v-model="dimensionvalue" class="ml-2" inline-prompt active-text="二维" inactive-text="三维"
+            @change="getdimension" />
     </div>
 </template>
 
@@ -362,9 +362,8 @@ onMounted(() => {
 
 .switchbox {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    top: 5vh;
+    bottom: 5px;
+    right: 30px;
 }
 
 .radio-group {
@@ -427,6 +426,7 @@ onMounted(() => {
     width: 9.5vh;
     margin-left: 3vh;
 }
+
 .custom-table {
     border-collapse: collapse;
     width: 100%;
@@ -443,12 +443,14 @@ onMounted(() => {
     height: 38px;
     width: 50%;
 }
+
 #WaveheightEcharts {
     padding: 0 20px 0 20px;
     width: 400px;
     /* height: 240px; */
     margin-top: 5px;
 }
+
 .leftbox-bottom {
     position: absolute;
     background-image: url('../../assets/img/框.png');
@@ -471,6 +473,7 @@ onMounted(() => {
     justify-content: center;
     align-items: center;
 }
+
 .leftbox-top-title-bottom span {
     /* margin-left: 40px; */
     font-weight: 600;
