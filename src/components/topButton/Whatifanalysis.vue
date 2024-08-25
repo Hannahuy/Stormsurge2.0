@@ -1,13 +1,12 @@
 <template>
     <div class="left-menu">
         <div class="leftbox-top-top">
-            <div class="leftbox-top-title">
+            <div class="leftbox-top-title" style="margin-top: 0;">
                 <span>减灾措施情景库</span>
             </div>
             <div class="oneBox">
                 <el-checkbox-group v-model="checkListone" class="checkboxone"
-                    @change="handleCheckChange('checkListone')" :disabled="isCheckListmeasure">
-                    <el-checkbox label="无减灾设施" value="无减灾设施" />
+                    @change="handleCheckChange('checkListone')">
                     <el-checkbox label="加防潮堤" value="加防潮堤" />
                     <el-checkbox label="加防汛沙袋" value="加防汛沙袋" />
                 </el-checkbox-group>
@@ -15,192 +14,40 @@
         </div>
         <div class="leftbox-top-content">
             <div class="leftbox-top-title">
-                <span>水位情景库</span>
+                <span>潮位情景库</span>
             </div>
             <div class="waterBox">
-                <span>水位高度：&nbsp;</span>
+                <span>潮位高度：&nbsp;</span>
                 <el-input-number v-model="inputvalue" size="large" style="width: 150px" :min="0" :max="8" :step="0.1"
                     :precision="1" @change="getinput" />
                 <span>&nbsp;&nbsp;米</span>
             </div>
         </div>
-        <div class="leftbox-top-bottom">
-            <div class="leftbox-top-title">
-                <span>重现期情景库</span>
-            </div>
-            <div class="checkbox">
-                <el-checkbox-group v-model="checkList" @change="getcheck" :disabled="isCheckListscene">
-                    <el-checkbox label="海浪情景" value="海浪情景" />
-                    <el-checkbox label="淹没情景" value="淹没情景" />
-                </el-checkbox-group>
-                <div class="switchbox" v-if="showdimension">
-                    <el-switch v-model="dimensionvalue" class="ml-2" inline-prompt active-text="二维" inactive-text="三维"
-                        @change="getdimension" />
-                </div>
-            </div>
-            <div class="twoBox">
-                <el-checkbox-group v-model="checkListtwo" class="checkboxtwo"
-                    @change="handleCheckChange('checkListtwo')" :disabled="isCheckListEmpty">
-                    <div class="checkbox-column">
-                        <el-checkbox label="10年一遇" value='10' />
-                        <el-checkbox label="20年一遇" value='20' />
-                        <el-checkbox label="50年一遇" value='50' />
-                    </div>
-                    <div class="checkbox-column">
-                        <el-checkbox label="100年一遇" value="100" />
-                        <el-checkbox label="200年一遇" value="200" />
-                        <el-checkbox label="1000年一遇" value="1000" />
-                    </div>
-                </el-checkbox-group>
-            </div>
-        </div>
-    </div>
-    <div class="colorbarBox" v-if="showWaves">
-        <div class="colornumber">
-            <span>{{ MaxValue }}m</span>
-            <span>{{ MinValue }}m</span>
-        </div>
-        <div class="colorbar"></div>
-    </div>
-    <div class="colorbarBox" v-if="showSubmerge">
-        <div class="colornumber">
-            <span>{{ MaxValue }}m</span>
-            <span>{{ MinValue }}m</span>
-        </div>
-        <div class="colorbar1"></div>
-    </div>
-    <div v-if="showBottom" class="leftbox-bottom">
-        <div class="leftbox-top-title-bottom">
-            <span>{{ titlevalue }}</span>
-        </div>
-        <div id="WaveheightEcharts">
-            <table class="custom-table">
-                <tr>
-                    <td>时间</td>
-                    <td>{{ Datatime }}</td>
-                </tr>
-                <tr>
-                    <td>经度</td>
-                    <td>{{ Lon }}°E</td>
-                </tr>
-                <tr>
-                    <td>纬度</td>
-                    <td>{{ Lat }}°N</td>
-                </tr>
-                <tr v-if="showWaveheight">
-                    <td>水位</td>
-                    <td>{{ Waveheight }}m</td>
-                </tr>
-                <tr v-for="(item, index) in Data" :key="index">
-                    <td>{{ item.Name }}</td>
-                    <td>{{ item.Value }}</td>
-                </tr>
-            </table>
-        </div>
     </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { callUIInteraction, addResponseEventListener } from "../../module/webrtcVideo/webrtcVideo.js";
 import { ElMessage } from 'element-plus';
 
-const MaxValue = ref(0);
-const MinValue = ref(0);
-const showWaves = ref(false);
-const showSubmerge = ref(false);
-const showBottom = ref(false);
-const showWaveheight = ref(false)
-const Waveheight = ref('')
-const Datatime = ref();
-const titlevalue = ref('')
-const Lon = ref();
-const Lat = ref();
-const Data = ref([]);
 const checkListone = ref([]);
-const checkListtwo = ref([]);
 const inputvalue = ref(0.0);
-const checkList = ref([]);
-const dimensionvalue = ref(true);
-const showdimension = ref(false);
-const isCheckListEmpty = computed(() => checkList.value.length === 0);
-const isCheckListscene = computed(() => checkListone.value.length != 0);
-const isCheckListmeasure = computed(() => checkList.value.length != 0);
-watch(checkList, (newValue) => {
-    if (newValue.length === 0) {
-        checkListtwo.value = [];
-    } else {
-        checkListtwo.value = ['10'];
-    }
-
-    if (newValue[0] === '海浪情景') {
-        showdimension.value = true;
-    } else {
-        showdimension.value = false;
-    }
-});
-
-let lastSelected = ref('0m');
-
 const descriptions = {
     checkListone: '减灾措施情景库',
-    checkListtwo: '重现期情景库',
-};
-
-let isdimension = '';
-if (dimensionvalue.value === true) {
-    isdimension = '二维';
-} else if (dimensionvalue.value === false) {
-    isdimension = '三维';
-}
-const getcheck = (checked) => {
-    showBottom.value = false;
-    titlevalue.value = checkList.value[0]
-    if (checked.length > 1) {
-        checkList.value = [checked[checked.length - 1]];
-    } else {
-        checkList.value = checked;
-    }
-    if (checkList.value[0] === '海浪情景') {
-        if (isdimension == '二维') {
-            showWaves.value = true;
-        } else if (isdimension == '三维') {
-            showWaves.value = false;
-        }
-        showSubmerge.value = false;
-        callUIInteraction({
-            ModuleName: '假设分析',
-            FunctionName: `${descriptions['checkListtwo']}`,
-            ChildrenModule: checkList.value[0],
-            State: checkListtwo.value[0],
-            Dimension: isdimension
-        });
-    } else if (checkList.value[0] === '淹没情景') {
-        showWaves.value = false;
-        showSubmerge.value = true;
-        callUIInteraction({
-            ModuleName: '假设分析',
-            FunctionName: `${descriptions['checkListtwo']}`,
-            ChildrenModule: checkList.value[0],
-            State: checkListtwo.value[0]
-        });
-    } else {
-        showWaves.value = false;
-        showSubmerge.value = false;
-    }
 };
 
 const getinput = () => {
     if (inputvalue.value == null) {
         ElMessage({
-            message: '请输入正确的水位高度，最多一位小数',
+            message: '请输入正确的潮位高度，最多一位小数',
             type: 'warning',
         });
         return;
     }
     callUIInteraction({
         ModuleName: '假设分析',
-        FunctionName: `水位情景库`,
+        FunctionName: `潮位情景库`,
         State: inputvalue.value
     });
 };
@@ -216,12 +63,11 @@ watch(checkListone, (newValue, oldValue) => {
             State: false
         });
     }
-
     if (added.length) {
         setTimeout(() => {
             callUIInteraction({
                 ModuleName: '假设分析',
-                FunctionName: `水位情景库`,
+                FunctionName: `潮位情景库`,
                 State: inputvalue.value
             });
             callUIInteraction({
@@ -233,83 +79,13 @@ watch(checkListone, (newValue, oldValue) => {
     }
 });
 
-const getdimension = (e) => {
-    if (e == true) {
-        showWaves.value = true;
-        callUIInteraction({
-            ModuleName: '假设分析',
-            FunctionName: `${descriptions['checkListtwo']}`,
-            ChildrenModule: checkList.value[0],
-            State: checkListtwo.value[0],
-            Dimension: '二维'
-        });
-    } else if (e == false) {
-        showWaves.value = false;
-        showBottom.value = false;
-        callUIInteraction({
-            ModuleName: '假设分析',
-            FunctionName: `${descriptions['checkListtwo']}`,
-            ChildrenModule: checkList.value[0],
-            State: checkListtwo.value[0],
-            Dimension: '三维'
-        });
-    }
-}
-watch(dimensionvalue, (newValue) => {
-    isdimension = newValue ? '二维' : '三维';
-});
-watch(checkListtwo, (newValue, oldValue) => {
-    if (newValue == '') {
-        callUIInteraction({
-            ModuleName: '假设分析',
-            FunctionName: `${descriptions['checkListtwo']}`,
-            State: false
-        });
-    }
-});
+
 
 const handleCheckChange = (listName) => {
-    showBottom.value = false;
     const list = listName === 'checkListone' ? checkListone : checkListtwo;
-    // 如果是 checkListtwo，确保只能选择一个
-    if (listName === 'checkListtwo') {
-        if (list.value.length > 1) {
-            list.value = [list.value[list.value.length - 1]]; // 保留最后一个选项
-        }
-        // 如果当前选项被取消，恢复到上一个选项
-        if (list.value.length === 0) {
-            list.value = [lastSelected.value]; // 恢复到上一个选项
-        } else {
-            lastSelected.value = list.value[0]; // 更新上一个选项
-        }
-        let scene = '';
-        if (checkList.value[0] === '海浪情景') {
-            scene = '海浪情景';
-        } else if (checkList.value[0] === '淹没情景') {
-            scene = '淹没情景';
-        }
-        if (scene === '海浪情景') {
-            callUIInteraction({
-                ModuleName: '假设分析',
-                FunctionName: `${descriptions['checkListtwo']}`,
-                ChildrenModule: scene,
-                State: lastSelected.value,
-                Dimension: isdimension
-            });
-        } else if (scene === '淹没情景') {
-            callUIInteraction({
-                ModuleName: '假设分析',
-                FunctionName: `${descriptions['checkListtwo']}`,
-                ChildrenModule: scene,
-                State: lastSelected.value
-            });
-        }
-
-    } else {
-        // 如果选中多个，保留最后一个
-        if (list.value.length > 1) {
-            list.value = [list.value[list.value.length - 1]];
-        }
+    // 如果选中多个，保留最后一个
+    if (list.value.length > 1) {
+        list.value = [list.value[list.value.length - 1]];
     }
 };
 
@@ -321,28 +97,13 @@ const myHandleResponseFunction = (data) => {
             type: 'warning',
         });
         return
-    } else if (datajson.Function === '假设分析海浪情景色带范围' || datajson.Function === '假设分析淹没情景色带范围') {
-        MaxValue.value = datajson.MaxValue;
-        MinValue.value = datajson.MinValue;
-    } else if (datajson.Function === '假设分析海浪情景点击查询' || datajson.Function === '假设分析淹没情景点击查询') {
-        if (datajson.Function === '假设分析淹没情景点击查询') {
-            showWaveheight.value = true;
-            Waveheight.value = datajson.Zeta.toFixed(2);
-        } else {
-            showWaveheight.value = false;
-        }
-        Datatime.value = datajson.DataTime;
-        Lon.value = datajson.Lon;
-        Lat.value = datajson.Lat;
-        Data.value = datajson.Data;
-        showBottom.value = true;
     }
 }
 
 onMounted(() => {
     callUIInteraction({
         ModuleName: '假设分析',
-        FunctionName: `水位情景库`,
+        FunctionName: `潮位情景库`,
         State: inputvalue.value
     });
     callUIInteraction({
@@ -360,17 +121,17 @@ onMounted(() => {
     top: 12%;
     left: 20px;
     width: 440px;
-    height: 655px;
-    padding: 20px;
+    height: 285px;
+    padding: 0 20px 20px 20px;
     box-sizing: border-box;
-    background-image: url('../../assets/img/框.png');
+    background-image: url('../../assets/img/反框.png');
     background-repeat: no-repeat;
     background-size: 100% 100%;
 }
 
 .leftbox-top-top {
     width: 100%;
-    height: 200px;
+    height: 145px;
 }
 
 .leftbox-top-content {

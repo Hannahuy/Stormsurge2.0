@@ -5,24 +5,27 @@
                 <span>重现期情景库</span>
             </div>
             <div class="radio-group">
-                <div class="radio-item" :class="{ 'active': selectedScenario === 'waves' }"
-                    @click="selectScenario('waves')">
-                    <span>海浪情景</span>
-                </div>
-                <div class="radio-item" :class="{ 'active': selectedScenario === 'submerge' }"
-                    @click="selectScenario('submerge')">
-                    <span>淹没情景</span>
-                </div>
+                <el-radio-group v-model="checkList" @change="getcheck">
+                    <el-radio label="海浪情景" value="海浪情景" />
+                    <el-radio label="淹没情景" value="淹没情景" />
+                </el-radio-group>
                 <div class="switchbox" v-if="showdimension">
                     <el-switch v-model="dimensionvalue" class="ml-2" inline-prompt active-text="二维" inactive-text="三维"
                         @change="getdimension" />
                 </div>
             </div>
             <div class="twoBox">
-                <div class="checkbox-item" v-for="(item, index) in checkboxItems" :key="index" @click="selectCheckbox(index)">
-                    <span>{{ item.label }}</span>
-                    <img :src="item.active ? activeImg : topimg" alt="">
-                </div>
+                <el-radio-group v-model="checkListtwo" class="checkboxtwo" @change="handleCheckChange('checkListtwo')"
+                    :disabled="isCheckListEmpty">
+                    <div class="radio-column">
+                        <el-radio label="10年一遇" value='10' />
+                        <el-radio label="20年一遇" value='20' />
+                        <el-radio label="50年一遇" value='50' />
+                        <el-radio label="100年一遇" value="100" />
+                        <el-radio label="200年一遇" value="200" />
+                        <el-radio label="1000年一遇" value="1000" />
+                    </div>
+                </el-radio-group>
             </div>
         </div>
     </div>
@@ -72,78 +75,148 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { callUIInteraction, addResponseEventListener } from "../../module/webrtcVideo/webrtcVideo.js";
-import topimg from '../../assets/img/newimg/资源 7.png';
-import activeImg from '../../assets/img/newimg/资源 6.png';
+import { ref, onMounted, watch, computed } from 'vue';
+import { callUIInteraction } from "../../module/webrtcVideo/webrtcVideo.js";
 
-const dimensionvalue = ref(true);
+const checkList = ref('');
+const isCheckListEmpty = computed(() => checkList.value === '');
 const showdimension = ref(true);
-const showWaves = ref(false);
 const showSubmerge = ref(false);
+const showBottom = ref(false);
+const titlevalue = ref('');
 const MaxValue = ref(0);
 const MinValue = ref(0);
-const selectedScenario = ref('waves');
 
-// Checkbox items data
-const checkboxItems = ref([
-    { label: '10年一遇', active: true }, // 默认选择10年一遇
-    { label: '20年一遇', active: false },
-    { label: '50年一遇', active: false },
-    { label: '100年一遇', active: false },
-    { label: '200年一遇', active: false },
-    { label: '1000年一遇', active: false }
-]);
-
-const selectScenario = (scenario) => {
-    selectedScenario.value = scenario;
-    showdimension.value = (scenario === 'waves');
-
-    // 每次选择情景时，重置复选框状态
-    resetCheckboxes();
+const dimensionvalue = ref(true);
+const showWaves = ref(false);
+const checkListtwo = ref('');
+const descriptions = {
+    checkListtwo: '重现期情景库',
 };
 
-const resetCheckboxes = () => {
-    checkboxItems.value.forEach((item, index) => {
-        item.active = (index === 0); // 选择 "10年一遇"
-    });
-};
+let isdimension = '';
+if (dimensionvalue.value === true) {
+    isdimension = '二维';
+} else if (dimensionvalue.value === false) {
+    isdimension = '三维';
+}
 
-const selectCheckbox = (index) => {
-    // 将所有复选框的 active 状态设置为 false
-    checkboxItems.value.forEach((item, i) => {
-        item.active = (i === index); // 只有被点击的项设置为 true
-    });
+watch(checkList, (newValue) => {
+    if (newValue === '') {
+        checkListtwo.value = '';
+    } else {
+        checkListtwo.value = '10';
+    }
+
+    if (newValue === '海浪情景') {
+        showdimension.value = true;
+    } else {
+        showdimension.value = false;
+    }
+});
+
+watch(checkListtwo, (newValue) => {
+    if (newValue === '') {
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `${descriptions['checkListtwo']}`,
+            State: false
+        });
+    }
+});
+
+const getcheck = (checked) => {
+    showBottom.value = false;
+    titlevalue.value = checkList.value;
+    if (checkList.value === '海浪情景') {
+        if (isdimension === '二维') {
+            showWaves.value = true;
+        } else if (isdimension === '三维') {
+            showWaves.value = false;
+        }
+        showSubmerge.value = false;
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `${descriptions['checkListtwo']}`,
+            ChildrenModule: checkList.value,
+            State: checkListtwo.value,
+            Dimension: isdimension
+        });
+    } else if (checkList.value === '淹没情景') {
+        showWaves.value = false;
+        showSubmerge.value = true;
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `${descriptions['checkListtwo']}`,
+            ChildrenModule: checkList.value,
+            State: checkListtwo.value
+        });
+    } else {
+        showWaves.value = false;
+        showSubmerge.value = false;
+    }
 };
 
 const getdimension = (e) => {
     if (e === true) {
         showWaves.value = true;
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `${descriptions['checkListtwo']}`,
+            ChildrenModule: checkList.value,
+            State: checkListtwo.value,
+            Dimension: '二维'
+        });
     } else if (e === false) {
         showWaves.value = false;
         showBottom.value = false;
+        callUIInteraction({
+            ModuleName: '风险评估',
+            FunctionName: `${descriptions['checkListtwo']}`,
+            ChildrenModule: checkList.value,
+            State: checkListtwo.value,
+            Dimension: '三维'
+        });
     }
 };
 
-const myHandleResponseFunction = (data) => {
-    const datajson = JSON.parse(data);
-    if (datajson.Function === '报错') {
-        ElMessage({
-            message: datajson.Type,
-            type: 'warning',
-        });
-        return;
+watch(dimensionvalue, (newValue) => {
+    isdimension = newValue ? '二维' : '三维';
+});
+
+const handleCheckChange = (listName) => {
+    showBottom.value = false;
+    if (listName === 'checkListtwo') {
+        // 直接使用单选的值
+        let scene = '';
+        if (checkList.value === '海浪情景') {
+            scene = '海浪情景';
+        } else if (checkList.value === '淹没情景') {
+            scene = '淹没情景';
+        }
+        if (scene === '海浪情景') {
+            callUIInteraction({
+                ModuleName: '风险评估',
+                FunctionName: `${descriptions['checkListtwo']}`,
+                ChildrenModule: scene,
+                State: checkListtwo.value,
+                Dimension: isdimension
+            });
+        } else if (scene === '淹没情景') {
+            callUIInteraction({
+                ModuleName: '风险评估',
+                FunctionName: `${descriptions['checkListtwo']}`,
+                ChildrenModule: scene,
+                State: checkListtwo.value
+            });
+        }
     }
 };
 
 onMounted(() => {
-    addResponseEventListener("handle_responses", myHandleResponseFunction);
+
 });
 </script>
-
-
-
-
 
 
 <style scoped>
@@ -152,7 +225,7 @@ onMounted(() => {
     flex-direction: column;
     position: absolute;
     left: 20px;
-    top: 8%;
+    top: 18%;
     padding: 0 20px 20px 20px;
     box-sizing: border-box;
     background-image: url('../../assets/img/反框.png');
@@ -279,66 +352,15 @@ onMounted(() => {
 
 .switchbox {
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    top: 5vh;
+    right: 0px;
+    top: 68px;
 }
 
 .radio-group {
-    margin-top: 2vh;
     width: 100%;
     height: 80px;
     display: flex;
-    justify-content: space-evenly;
-    align-items: center;
-}
-
-.radio-item {
-    width: 12vh;
-    height: 3vh;
-    background-image: url('../../assets/img/newimg/资源 2.png');
-    background-size: 100% 100%;
-    background-repeat: no-repeat;
-    display: flex;
     justify-content: center;
     align-items: center;
-    color: #B7CFFC;
-    cursor: pointer;
-}
-
-.radio-item.active {
-    width: 12vh;
-    height: 3vh;
-    background-image: url('../../assets/img/newimg/资源 3.png');
-    background-size: 100% 100%;
-    background-repeat: no-repeat;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #B7CFFC;
-    cursor: pointer;
-}
-.twoBox{
-    height: 35vh;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    align-items: center;
-}
-.checkbox-item{
-    width: 20vh;
-    height: 4vh;
-    background-image: url('../../assets/img/newimg/资源 5.png');
-    background-size: 100% 100%;
-    background-repeat: no-repeat;
-    display: flex;
-    align-items: center;
-    color: #B7CFFC;
-    cursor: pointer;
-}
-.checkbox-item span{
-    width: 9.5vh;
-    margin-left: 3vh;
 }
 </style>

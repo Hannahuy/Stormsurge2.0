@@ -6,6 +6,10 @@
         <div class="leftbox-top-button" :class="{ active: activeButton === 'tide' }" @click="toggleBackground('tide')">
             潮位预测
         </div>
+        <div class="leftbox-top-button" :class="{ active: activeButton === 'weather' }"
+            @click="toggleBackground('weather')">
+            气象预测
+        </div>
     </div>
     <div v-if="showBottom" class="leftbox-bottom">
         <div class="leftbox-top-title">
@@ -55,14 +59,16 @@
         <div :style="adjustedStylelang">
             <span class="sidebar-span">{{ colorvalue }}</span>
         </div>
-        <el-slider v-model="colorvalue" :step="0.1" vertical height="200px" :min="0" :max="3" :marks="colormarks" :show-tooltip="false" @change="getcolorvalue" />
+        <el-slider v-model="colorvalue" :step="0.1" vertical height="200px" :min="0" :max="3" :marks="colormarks"
+            :show-tooltip="false" @change="getcolorvalue" />
         <div class="color-bar"></div>
     </div>
     <div class="sidebar" v-show="shownextbar">
         <div :style="adjustedStylechao">
             <span class="sidebar-span2">{{ colorvalue2 }}</span>
         </div>
-        <el-slider v-model="colorvalue2" :step="0.1" vertical height="200px" :min="-2" :max="3" :marks="colormarks2" :show-tooltip="false" @change="getcolorvalue2" />
+        <el-slider v-model="colorvalue2" :step="0.1" vertical height="200px" :min="-2" :max="3" :marks="colormarks2"
+            :show-tooltip="false" @change="getcolorvalue2" />
         <div class="color-nextbar"></div>
     </div>
 </template>
@@ -114,8 +120,10 @@ const toggleBackground = (button) => {
         } else if (button === 'tide') {
             timePick.value = dayjs("2024-06-06").toDate();
             timePlay.value = dayjs("2024-06-06 20:00").valueOf();
+        } else if (button === 'weather') {
+            timePick.value = dayjs().toDate();
+            timePlay.value = dayjs().valueOf();
         }
-
         min.value = dayjs(timePick.value).startOf("day").valueOf();
         max.value = dayjs(timePick.value).endOf("day").valueOf();
 
@@ -259,6 +267,7 @@ const marks = computed(() => {
 
 watch(timePick, (newVal) => {
     const selectedDate = dayjs(newVal);
+    const today = dayjs(); // 获取今天的日期
     min.value = selectedDate.startOf("day").valueOf();
     // 更新 max 为当天23点
     max.value = selectedDate.hour(23).minute(0).second(0).valueOf();
@@ -267,7 +276,10 @@ watch(timePick, (newVal) => {
         return;
     }
     // 根据日期设置时间进度
-    if (selectedDate.isSame(dayjs("2024-03-21"), 'day')) {
+    if (selectedDate.isSame(today, 'day')) {
+        // 如果是今天，设置为当前小时的时间戳，分钟和秒数为0
+        timePlay.value = today.startOf('hour').valueOf();
+    } else if (selectedDate.isSame(dayjs("2024-03-21"), 'day')) {
         timePlay.value = dayjs("2024-03-21 12:00").valueOf();
     } else if (selectedDate.isSame(dayjs("2024-06-06"), 'day')) {
         timePlay.value = dayjs("2024-06-06 20:00").valueOf();
@@ -362,7 +374,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .leftbox-top {
     width: 200px;
-    height: 150px;
+    height: 225px;
     position: absolute;
     left: 20px;
     display: flex;
@@ -693,7 +705,7 @@ onBeforeUnmount(() => {
     background-repeat: no-repeat;
     background-size: 100% 100%;
     border-radius: 9px;
-    
+
 }
 
 :deep(.el-table--fit) {

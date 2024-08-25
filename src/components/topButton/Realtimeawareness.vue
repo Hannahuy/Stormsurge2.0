@@ -3,7 +3,7 @@
         <div class="leftbox-top">
             <div class="leftbox-top-title">
                 <img :src="currentImage" alt="" class="FBshow" @click="toggleImage">
-                <span>水位变化</span>
+                <span>潮位变化</span>
             </div>
             <div id="TideEcharts"></div>
         </div>
@@ -29,9 +29,58 @@
             <div :style="adjustedStyle">
                 <span class="bottombox-slider-span">{{ formattedTime }}</span>
             </div>
-            <el-slider :step="3600000" v-model="timePlay" :show-tooltip="false" :min="min" :max="max" :marks="marks"
+            <el-slider :step="10800000" v-model="timePlay" :show-tooltip="false" :min="min" :max="max" :marks="marks"
                 style="position: relative; z-index: 1; width: 1600px" @change="gettimePlay">
             </el-slider>
+        </div>
+    </div>
+    <div class="rightbox">
+        <div class="hleftbox-1">
+            <div class="hleftbox-1-title">
+                <span>最近24小时数据</span>
+            </div>
+            <div class="hleftbox-1-content">
+                <div class="hleftbox-1-content-1">
+                    <img src="../../assets/img/风场@3x.png" class="imgsize" alt="">
+                    <div class="hleftbox-1-content-1-span">
+                        <span>最大潮位：{{ maxTideHeight }}m</span>
+                        <span>{{ tidemaxDataTime }}</span>
+                    </div>
+                </div>
+                <div class="hleftbox-1-content-1">
+                    <img src="../../assets/img/海温@3x.png" class="imgsize" alt="">
+                    <div class="hleftbox-1-content-1-span">
+                        <span>最小潮位：{{ minTideHeight }}m</span>
+                        <span>{{ tideminDataTime }}</span>
+                    </div>
+                </div>
+                <div class="hleftbox-1-content-1">
+                    <img src="../../assets/img/海浪@3x.png" class="imgsize" alt="">
+                    <div class="hleftbox-1-content-1-span">
+                        <span>最大波高：{{ maxWaveHeight }}m</span>
+                        <span>{{ wavemaxDataTime }}</span>
+                    </div>
+                </div>
+                <div class="hleftbox-1-content-1">
+                    <img src="../../assets/img/流场@3x.png" class="imgsize" alt="">
+                    <div class="hleftbox-1-content-1-span">
+                        <span>最小波高：{{ minWaveHeight }}m</span>
+                        <span>{{ waveminDataTime }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="hleftbox-1">
+            <div class="hleftbox-1-title">
+                <span>小麦岛实时监测数据</span>
+            </div>
+            <div id="hleftbox-3-content-echarts"></div>
+        </div>
+        <div class="hleftbox-3">
+            <div class="hleftbox-1-title">
+                <span>过去一周波高变化</span>
+            </div>
+            <div id="hleftbox-2-content-echarts"></div>
         </div>
     </div>
 </template>
@@ -45,41 +94,62 @@ import tabledataJson from "/public/data/实时监测.json";
 import { ElMessage } from 'element-plus'
 import imgshow from '../../assets/img/浮标.png'
 import imageshow from '../../assets/img/浮标 (1).png'
+import axios from 'axios'
+import { ElLoading } from 'element-plus'
 
+const loading = ref()
+const Tidedata = ref();
+const Wavedata = ref();
 const currentImage = ref(imageshow);
 const toggleImage = () => {
     if (currentImage.value === imageshow) {
         callUIInteraction({
-            ModuleName:'实时感知',
+            ModuleName: '实时感知',
             FunctionName: '浮标模型',
             State: false
         })
         currentImage.value = imgshow;
+        console.log('实时感知', '浮标模型', false);
+
     } else {
         callUIInteraction({
-            ModuleName:'实时感知',
+            ModuleName: '实时感知',
             FunctionName: '浮标模型',
             State: true
         })
         currentImage.value = imageshow;
+        console.log('实时感知', '浮标模型', true);
     }
 };
 
-const timePick = ref(dayjs("2024-06-14").toDate());
-const timePlay = ref(dayjs("2024-06-14 00:00").valueOf()); // 默认设置为 2024-06-14 00:00
+const timePick = ref(dayjs().toDate());
+const timePlay = ref(dayjs().minute(0).second(0).valueOf());
 const disabledDate = () => false;
 const activePlay = ref("");
 const isDisabled = ref(false);
+
+const isProgrammaticDateChange = ref(false);
+
+const isAdjustingTime = ref(false);
+const isJumpingDay = ref(false);
 // 倒退
 const Backoff = () => {
+    if (isAdjustingTime.value) return;
+    isAdjustingTime.value = true;
     const previousTime = timePlay.value;
-    const newTime = dayjs(previousTime).subtract(1, 'hour').valueOf();
-    // 确保 newTime 不小于 min
-    if (newTime >= min.value) {
-        timePlay.value = newTime;
-    } else {
-        timePlay.value = min.value;
+    timePlay.value = dayjs(previousTime).subtract(3, 'hour').valueOf();
+
+    // 检查是否达到最小值
+    if (timePlay.value < min.value) {
+        isJumpingDay.value = true; // 标记为日期跳跃
+        isProgrammaticDateChange.value = true;
+        // 跳到前一天
+        timePick.value = dayjs(timePick.value).subtract(1, 'day').toDate();
+        timePlay.value = max.value; // 加满进度条，设置为最大值
     }
+    // console.log(Tidedata.value);
+    // console.log(Wavedata.value);
+    isAdjustingTime.value = false;
 };
 // 暂停/播放
 let previousPlayState = "";
@@ -102,14 +172,19 @@ const togglePlay = () => {
 };
 // 前进
 const Fastforward = () => {
+    if (isAdjustingTime.value) return;
+    isAdjustingTime.value = true;
     const previousTime = timePlay.value;
-    const newTime = dayjs(previousTime).add(1, 'hour').valueOf();
-    // 确保 newTime 不大于 max
-    if (newTime <= max.value) {
-        timePlay.value = newTime;
-    } else {
-        timePlay.value = max.value;
+    timePlay.value = dayjs(previousTime).add(3, 'hour').valueOf();
+    // 检查是否达到最大值
+    if (timePlay.value > max.value) {
+        isJumpingDay.value = true; // 标记为日期跳跃
+        isProgrammaticDateChange.value = true;
+        // 跳到下一天
+        timePick.value = dayjs(timePick.value).add(1, 'day').toDate();
+        timePlay.value = min.value; // 清零进度条
     }
+    isAdjustingTime.value = false;
 };
 
 const min = ref(dayjs(timePick.value).startOf("day").valueOf());
@@ -161,27 +236,30 @@ const marks = computed(() => {
 });
 watch(timePick, (newVal) => {
     const selectedDate = dayjs(newVal);
+    const today = dayjs(); // 获取今天的日期
     min.value = selectedDate.startOf("day").valueOf();
     // 更新 max 为当天23点
     max.value = selectedDate.hour(23).minute(0).second(0).valueOf();
+    if (isProgrammaticDateChange.value) {
+        isProgrammaticDateChange.value = false;
+        return;
+    }
     // 根据日期设置时间进度
-    timePlay.value = selectedDate.startOf("day").valueOf();
+    if (selectedDate.isSame(today, 'day')) {
+        // 如果是今天，设置为当前小时的时间戳，分钟和秒数为0
+        timePlay.value = today.startOf('hour').valueOf();
+    } else {
+        timePlay.value = selectedDate.startOf("day").valueOf();
+    }
 });
 watch(timePlay, (newVal) => {
+    if (isAdjustingTime.value) return;
     const currentTime = dayjs(newVal);
-    // 检查当前时间是否为整点
     if (currentTime.minute() === 0 && currentTime.second() === 0) {
-        // 打印对应的 waterlevel 值
-        const hour = currentTime.hour(); // 获取当前小时
-        if (hour >= 0 && hour < tabledataJson.length) { // 确保小时在数组范围内
-            const waterLevel = parseFloat(tabledataJson[hour].waterlevel); // 获取对应的 waterlevel 并转换为浮点型
-            const wavehight = parseFloat(tabledataJson[hour].Waveheight);
-            callUIInteraction({
-                ModuleName:'实时感知',
-                FunctionName: '实时感知时间轴',
-                Waterhigh: waterLevel,
-                Wavehigh: wavehight
-            });
+        if (isJumpingDay.value) {
+            isJumpingDay.value = false;
+        } else {
+
         }
     }
     if (currentTime.isSame(dayjs(max.value))) {
@@ -196,6 +274,16 @@ const gettimePlay = (e) => {
         activePlay.value = "";
     }
 }
+
+// 24小时
+const generateHours = (hours) => {
+    const timeLabels = [];
+    for (let i = 0; i < hours; i++) {
+        const hour = i < 10 ? `0${i}:00` : `${i}:00`; // 格式化为两位数
+        timeLabels.push(hour);
+    }
+    return timeLabels;
+};
 
 let TideEchartsdata = null;
 const Tideinit = () => {
@@ -214,7 +302,7 @@ const Tideinit = () => {
             trigger: 'axis',
         },
         xAxis: {
-            data: updatedTimes,
+            data: tidexData.value,
             axisLabel: {
                 show: true,
                 textStyle: {
@@ -228,7 +316,7 @@ const Tideinit = () => {
             },
         },
         yAxis: {
-            name: '水位 (m)', // 添加单位
+            name: '潮位 (m)', // 添加单位
             nameTextStyle: {
                 color: "#b7cffc",
                 fontSize: 14
@@ -250,8 +338,8 @@ const Tideinit = () => {
         series: [
             {
                 type: 'bar', // 将类型改为 'bar'
-                name: '水位',
-                data: waterLevels,
+                name: '潮位',
+                data: tideyData.value,
                 itemStyle: {
                     color: {
                         type: 'linear',
@@ -280,16 +368,13 @@ const Waveheightinit = () => {
         WaveheightEchartsdata.dispose();
     }
     WaveheightEchartsdata = echarts.init(salinityChartElement);
-    // 从 JSON 数据中提取 x 和 y 轴的数据
-    const updatedTimes = tabledataJson.map(item => item.Updated);
-    const WaveHeight = tabledataJson.map(item => parseFloat(item.Waveheight));
 
     const options = {
         tooltip: {
             trigger: 'axis'
         },
         xAxis: {
-            data: updatedTimes,
+            data: wavexData.value,
             axisLabel: {
                 show: true,
                 textStyle: {
@@ -327,7 +412,7 @@ const Waveheightinit = () => {
                 type: 'line',
                 showSymbol: false,
                 name: '波高',
-                data: WaveHeight,
+                data: waveyData.value,
                 stack: "Total",
                 smooth: true,
                 lineStyle: { width: 0 },
@@ -340,37 +425,374 @@ const Waveheightinit = () => {
                     ]),
                 },
                 emphasis: { focus: "series" },
-                // lineStyle: {
-                //     width: 5, // 设置线条粗细为5
-                //     color: {
-                //         type: 'linear',
-                //         x: 0,
-                //         y: 0,
-                //         x2: 0,
-                //         y2: 1,
-                //         colorStops: [
-                //             { offset: 0, color: '#00f2fe' }, // 渐变起始颜色
-                //             { offset: 1, color: '#0088ff' }  // 渐变结束颜色
-                //         ],
-                //         global: false // 缺省为 false
-                //     }
-                // }
             }
         ],
         grid: { x: 35, y: 40, x2: 15, y2: 25 },
     };
     WaveheightEchartsdata.setOption(options);
 };
+let TideEchartsdatass = null;
+const righttop = () => {
+    const salinityChartElement = document.getElementById("hleftbox-3-content-echarts");
+    if (TideEchartsdatass) {
+        TideEchartsdatass.dispose();
+    }
+    TideEchartsdatass = echarts.init(salinityChartElement);
 
+    const hours = 24; // 24小时
+    const timeLabels = generateHours(hours);
+
+    const options = {
+        tooltip: {
+            trigger: 'axis'
+        },
+        grid: {
+            left: '9%',
+            top: '20%',
+            right: '22%',
+            bottom: '18%'
+        },
+        xAxis: {
+            type: 'category',
+            axisLabel: {
+                // rotate: 30,    // 旋转角度，这里设置为45度
+                fontSize: 14,  // 这里可以根据需要调整字体大小
+                // interval: 0,
+                color: '#b7cffc'
+            },
+            data: timeLabels
+        },
+        yAxis: {
+            type: 'value',
+            name: '波高(m)',
+            nameTextStyle: {
+                color: '#b7cffc',
+                fontFamily: 'FZLTHK--GBK1-0',
+                fontSize: '14'
+            },
+            splitLine: {
+                show: false // 不显示网格线
+            },
+            axisLabel: {
+                rotate: 0,    // 旋转角度，这里设置为45度
+                fontSize: 14,  // 这里可以根据需要调整字体大小
+                color: '#b7cffc'
+            },
+        },
+        visualMap: {
+            top: 'middle',    // 将位置设置为中间，也可以用百分比或具体数值调整位置
+            right: 10,
+            align: 'left',   // 确保与右侧对齐
+            itemWidth: 10,    // 调整色带的宽度
+            itemHeight: 10,  // 调整色带的高度，较大的高度会增加间隙感
+            textStyle: {
+                color: '#b7cffc',  // 文字颜色
+                fontSize: 12   // 文字大小
+            },
+            pieces: [
+                {
+                    gt: 0,
+                    lte: 1,
+                    color: '#93CE07'
+                },
+                {
+                    gt: 1,
+                    lte: 2,
+                    color: '#FBDB0F'
+                },
+                {
+                    gt: 2,
+                    lte: 3,
+                    color: '#FC7D02'
+                },
+                {
+                    gt: 3,
+                    lte: 4,
+                    color: '#FD0100'
+                },
+                {
+                    gt: 4,
+                    lte: 5,
+                    color: '#AA069F'
+                },
+                {
+                    gt: 5,
+                    color: '#AC3B2A'
+                }
+            ],
+            outOfRange: {
+                color: '#999'
+            }
+        },
+        series: [
+            {
+                name: '波高 m',
+                type: 'line',
+                smooth: 0.2,
+                data: [0.04, 1.10, 2.50, 3.80, 4.27, 4.54, 4.08, 3.60, 2.50, 2.00, 1.75, 0.090, 1.78, 2.78, 3.78, 4.20, 4.00, 3.00, 2.20, 0.9, 1.12, 1.35, 1.27, 1.18],
+            }
+        ]
+    };
+    TideEchartsdatass.setOption(options);
+};
+
+let TideEchartsdatas = null;
+const leftbottom = () => {
+    const salinityChartElement = document.getElementById("hleftbox-2-content-echarts");
+    if (TideEchartsdatas) {
+        TideEchartsdatas.dispose();
+    }
+    TideEchartsdatas = echarts.init(salinityChartElement);
+    const options = {
+        tooltip: {
+            trigger: 'axis',
+        },
+        xAxis: {
+            data: xData7.value, // 使用生成的日期
+            axisLabel: {
+                show: true,
+                textStyle: {
+                    color: "#b7cffc",
+                    fontSize: 14,
+                },
+            },
+        },
+        yAxis: {
+            name: '波高 (m)', // 添加单位
+            nameTextStyle: {
+                color: "#b7cffc",
+                fontSize: 14
+            },
+            axisLine: {
+                show: false
+            },
+            axisLabel: {
+                show: true,
+                textStyle: {
+                    color: "#b7cffc",
+                    fontSize: 14
+                }
+            },
+            splitLine: {
+                show: false
+            }
+        },
+        series: [
+            {
+                type: 'line',
+                showSymbol: false,
+                name: '波高',
+                data: yData7.value,
+                stack: "Total",
+                smooth: true,
+                lineStyle: { width: 0 },
+                areaStyle: {
+                    opacity: 0.8,
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 1, color: "#0358c0" },
+                        { offset: 0, color: "#28F2E6" },
+                    ]),
+                },
+                emphasis: { focus: "series" },
+            }
+        ],
+        grid: { x: 45, y: 30, x2: 15, y2: 25 },
+    };
+    TideEchartsdatas.setOption(options);
+};
+
+const maxWaveHeight = ref(null);
+const minWaveHeight = ref(null);
+const wavemaxDataTime = ref(null);
+const waveminDataTime = ref(null);
+
+const maxTideHeight = ref(null);
+const minTideHeight = ref(null);
+const tidemaxDataTime = ref(null);
+const tideminDataTime = ref(null);
+
+const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    return `${year}${month}${day}${hours}`; // 返回YYYYMMDDHH格式
+};
+
+const formatDisplayDate = (date) => {
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // 月份从0开始
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    return `${month}/${day} ${hours}:00`;
+};
+
+const wavexData = ref();
+const waveyData = ref();
+
+const getLastWaveData = () => {
+    const currentDate = new Date();
+    const startDate = new Date(currentDate);
+    startDate.setDate(currentDate.getDate() - 1); // 往前推一天
+    const staUtcTime = formatDate(startDate);
+    const endUtcTime = formatDate(currentDate);
+    const message = JSON.stringify({
+        lon: 108.050537109375,
+        lat: 18.302380604025146,
+        type: 'wave',
+        staUtcTime: staUtcTime,
+        endUtcTime: endUtcTime
+    });
+    axios.post('https://www.oceanread.com/YHYBService/v1.4.0/WS_DataQuery.asmx/QueryDataFromFull', { message }, {
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+    })
+        .then(res => {
+            const data = res.data.data;
+            if (data && data.length > 0) {
+                Wavedata.value = data;
+                // 如果数据长度为9，则只取前8条数据
+                const processedData = data.length === 9 ? data.slice(0, 8) : data;
+                maxWaveHeight.value = Math.max(...processedData.map(item => item.v));
+                minWaveHeight.value = Math.min(...processedData.map(item => item.v));
+                const maxIndex = processedData.findIndex(item => item.v === maxWaveHeight.value);
+                const minIndex = processedData.findIndex(item => item.v === minWaveHeight.value);
+                const maxTime = new Date(startDate.getTime() + maxIndex * 3 * 60 * 60 * 1000);
+                const minTime = new Date(startDate.getTime() + minIndex * 3 * 60 * 60 * 1000);
+                wavemaxDataTime.value = formatDisplayDate(maxTime);
+                waveminDataTime.value = formatDisplayDate(minTime);
+                let time = new Date(startDate);
+                wavexData.value = []; // 清空之前的数据
+                waveyData.value = []; // 清空之前的数据
+
+                data.forEach(item => {
+                    wavexData.value.push(formatDisplayDate(time)); // 添加到 wavexData
+                    waveyData.value.push(item.v); // 添加到 waveyData
+                    time.setHours(time.getHours() + 3); // 增加3小时
+                });
+                Waveheightinit(); // 初始化图表
+            } else {
+                maxWaveHeight.value = null;
+                minWaveHeight.value = null;
+                wavemaxDataTime.value = null;
+                waveminDataTime.value = null;
+            }
+        })
+        .catch(error => {
+            console.error(error);
+        });
+};
+
+const xData7 = ref();
+const yData7 = ref();
+
+const get7DayWaveData = () => {
+    const currentDate = new Date();
+    const startDate = new Date(currentDate);
+    startDate.setDate(currentDate.getDate() - 7); // 往前推一周
+    const staUtcTime = formatDate(startDate);
+    const endUtcTime = formatDate(currentDate);
+    const message = JSON.stringify({
+        lon: 108.050537109375,
+        lat: 18.302380604025146,
+        type: 'wave',
+        staUtcTime: staUtcTime,
+        endUtcTime: endUtcTime
+    });
+
+    axios.post('https://www.oceanread.com/YHYBService/v1.4.0/WS_DataQuery.asmx/QueryDataFromFull', { message }, {
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+    })
+        .then(res => {
+            let data = res.data.data;
+
+            if (data && data.length === 57) {
+                data = data.slice(0, 56); // 去掉第57个，只取前56个值
+            }
+
+            if (data && data.length === 56) {
+                let time = new Date(startDate);
+                xData7.value = []; // 清空之前的数据
+                yData7.value = []; // 清空之前的数据
+
+                data.forEach(item => {
+                    xData7.value.push(formatDisplayDate(time)); // 添加到 xData7
+                    yData7.value.push(item.v); // 添加到 yData7
+                    time.setHours(time.getHours() + 3); // 增加3小时
+                });
+                leftbottom(); // 初始化图表
+            }
+            loading.value.close();
+        })
+        .catch(error => {
+            console.error(error);
+        });
+};
+const tidexData = ref();
+const tideyData = ref();
+const getTidedata = () => {
+    const currentDate = new Date();
+    const startDate = new Date(currentDate);
+    startDate.setDate(currentDate.getDate() - 1); // 往前推一天
+    const staUtcTime = formatDate(startDate);
+    const endUtcTime = formatDate(currentDate);
+    const data = {
+        dataType: 'BH_crt',
+        endUtcTimeStr: endUtcTime,
+        lat: 36.04254778378739,
+        lon: 120.37788381113283,
+        startUtcTimeStr: staUtcTime,
+    }
+    axios.post('http://www.oceanread.com/QueryData/WS_DataQuery.asmx/QueryDataFromFull', data).then((res) => {
+        const data = res.data.d.resultJsonArray;
+        if (data && data.length > 0) {
+            Tidedata.value = data;
+            // 如果数据长度为9，则只取前8条数据
+            const processedData = data.length === 9 ? data.slice(0, 8) : data;
+            maxTideHeight.value = Math.max(...processedData.map(item => item.value1));
+            minTideHeight.value = Math.min(...processedData.map(item => item.value1));
+            const maxIndex = processedData.findIndex(item => item.value1 === maxTideHeight.value);
+            const minIndex = processedData.findIndex(item => item.value1 === minTideHeight.value);
+            const maxTime = new Date(startDate.getTime() + maxIndex * 3 * 60 * 60 * 1000);
+            const minTime = new Date(startDate.getTime() + minIndex * 3 * 60 * 60 * 1000);
+            tidemaxDataTime.value = formatDisplayDate(maxTime);
+            tideminDataTime.value = formatDisplayDate(minTime);
+            let time = new Date(startDate);
+            tidexData.value = []; // 清空之前的数据
+            tideyData.value = []; // 清空之前的数据
+            data.forEach(item => {
+                tidexData.value.push(formatDisplayDate(time)); // 添加到 tidexData
+                tideyData.value.push(item.value1); // 添加到 tideyData
+                time.setHours(time.getHours() + 3); // 增加3小时
+            });
+            Tideinit(); // 初始化图表
+        } else {
+            maxTideHeight.value = null;
+            minTideHeight.value = null;
+            tidemaxDataTime.value = null;
+            tideminDataTime.value = null;
+        }
+    })
+}
 onMounted(() => {
-    Tideinit();
-    Waveheightinit();
+    loading.value = ElLoading.service({
+        lock: true,
+        text: '加载中...',
+        background: 'rgba(0, 0, 0, 0.7)',
+    })
+    righttop();
+    getTidedata();
+    getLastWaveData();
+    get7DayWaveData();
     callUIInteraction({
-        ModuleName:'实时感知',
+        ModuleName: '实时感知',
         FunctionName: `实时感知时间轴`,
         Waterhigh: tabledataJson[0].waterlevel,
         Wavehigh: tabledataJson[0].Waveheight
     });
+    console.log('实时感知', `实时感知时间轴`, tabledataJson[0].waterlevel, tabledataJson[0].Waveheight);
 })
 onBeforeUnmount(() => {
     if (TideEchartsdata) {
@@ -378,6 +800,12 @@ onBeforeUnmount(() => {
     }
     if (WaveheightEchartsdata) {
         WaveheightEchartsdata.dispose();
+    }
+    if (TideEchartsdatass) {
+        TideEchartsdatass.dispose();
+    }
+    if (TideEchartsdatas) {
+        TideEchartsdatas.dispose();
     }
 });
 </script>
@@ -388,10 +816,10 @@ onBeforeUnmount(() => {
     width: 420px;
     min-height: 707px;
     position: absolute;
-    background-image: url('../../assets/img/框.png');
+    background-image: url('../../assets/img/反框.png');
     background-size: 100% 100%;
     background-repeat: no-repeat;
-    top: 10%;
+    top: 8%;
     left: 20px;
 }
 
@@ -420,30 +848,13 @@ onBeforeUnmount(() => {
 .leftbox-top-title span {
     /* margin-left: 40px; */
     font-weight: 600;
-    color: #B7CFFC;
+    background: linear-gradient(0deg, #12D8FF 0%, #96EFFD 50%, #F9FCFF 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
     font-size: 20px;
     letter-spacing: 5px;
 }
-
-/* .leftbox-top-content-btn {
-    width: 100%;
-    height: 65px;
-    display: flex;
-    align-items: center;
-    justify-content: space-evenly;
-} */
-
-/* .leftbox-top-content-botton {
-    height: 32px;
-    width: 80px;
-    border: 0px;
-    border-radius: 0;
-    background-color: #8ca6bb;
-}
-
-.leftbox-top-content-botton.active {
-    background-color: #116AD4;
-} */
 
 .leftbox-bottom {
     width: 100%;
@@ -619,5 +1030,102 @@ onBeforeUnmount(() => {
     width: 25px;
     height: 25px;
     cursor: pointer;
+}
+
+.rightbox {
+    position: absolute;
+    top: 8%;
+    right: 20px;
+    width: 420px;
+    min-height: 780px;
+    padding: 6px 20px 20px 20px;
+    box-sizing: border-box;
+    background-image: url('../../src/assets/img/框.png');
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+}
+
+.hleftbox-1 {
+    min-height: 205px;
+}
+
+.hleftbox-1-title {
+    height: 45px;
+    background-image: url('../../assets/img/标题背景.png');
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    color: #b7cffc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    line-height: 30px;
+    font-size: 18px;
+}
+
+.hleftbox-1-title span {
+    font-family: PangMenZhengDao;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 5px;
+    background: linear-gradient(0deg, #12D8FF 0%, #96EFFD 50%, #F9FCFF 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hleftbox-1-content {
+    margin-top: 10px;
+    height: 150px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    color: #b7cffc;
+}
+
+.hleftbox-1-content span {
+    margin-left: 5px;
+    margin-right: 5px;
+    font-family: PangMenZhengDao;
+    font-size: 16px;
+    font-weight: 600;
+    /* letter-spacing: 5px; */
+    background: linear-gradient(0deg, #12D8FF 0%, #96EFFD 50%, #F9FCFF 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hleftbox-1-content-1 {
+    width: 190px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hleftbox-1-content-1-span {
+    width: 147px;
+    display: flex;
+    flex-direction: column;
+}
+
+.imgsize {
+    width: 43px;
+    height: 43px;
+}
+
+#hleftbox-1-content-echarts,
+#hleftbox-2-content-echarts,
+#hleftbox-3-content-echarts,
+#hleftbox-4-content-echarts,
+#hleftbox-5-content-echarts {
+    width: 380px;
+    margin-top: 10px;
+    height: 210px;
+}
+
+.hleftbox-3 {
+    margin-top: 10px;
+    min-height: 250px;
 }
 </style>
