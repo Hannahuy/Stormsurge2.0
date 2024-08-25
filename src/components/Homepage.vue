@@ -41,7 +41,7 @@
       <Whatifanalysis />
     </div>
   </div>
-  <!-- <background /> -->
+  <background />
 </template>
 
 <script setup>
