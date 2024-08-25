@@ -149,7 +149,6 @@ const Backoff = () => {
 
     // 格式化 timePlay 为 YYYYMMDDHH
     const formattedTimePlay = dayjs(timePlay.value).format('YYYYMMDDHH');
-    console.log(formattedTimePlay); // 打印格式化后的值
 
     // 查找并打印对应的值
     const tideItem = Tidedata.value.find(item => item.time === formattedTimePlay);
