@@ -18,16 +18,16 @@
         <div id="WaveheightEcharts">
             <table class="custom-table">
                 <tr>
-                    <td>时间</td>
-                    <td>{{ Datatime }}</td>
+                    <td v-if="showlonlat">时间</td>
+                    <td v-if="showlonlat">{{ Datatime }}</td>
                 </tr>
                 <tr>
-                    <td>经度</td>
-                    <td>{{ Lon }}°E</td>
+                    <td v-if="showlonlat">经度</td>
+                    <td v-if="showlonlat">{{ Lon }}°E</td>
                 </tr>
                 <tr>
-                    <td>纬度</td>
-                    <td>{{ Lat }}°N</td>
+                    <td v-if="showlonlat">纬度</td>
+                    <td v-if="showlonlat">{{ Lat }}°N</td>
                 </tr>
                 <tr v-for="(item, index) in Data" :key="index">
                     <td>{{ item.Name }}</td>
@@ -85,6 +85,7 @@ const Lon = ref();
 const Lat = ref();
 const Data = ref([]);
 const showBottom = ref(false);
+const showlonlat = ref(true);
 const activeButton = ref('wave'); // 默认选择海浪预测
 const colorvalue = ref(3);
 const colorvalue2 = ref(3);
@@ -298,22 +299,31 @@ watch(timePick, (newVal) => {
 watch(timePlay, (newVal) => {
     if (isAdjustingTime.value) return;
     const currentTime = dayjs(newVal);
+    
+    // 判断当前时间是否为整点
     if (currentTime.minute() === 0 && currentTime.second() === 0) {
         if (isJumpingDay.value) {
             isJumpingDay.value = false;
         } else {
+            // 根据当前的 activeButton 来决定时间格式
+            const formattedTime = activeButton.value === 'weather' 
+                ? currentTime.format('YYYY-MM-DD-HH') 
+                : currentTime.format('YYYY-MM-DD HH:mm:ss');
+
             callUIInteraction({
                 ModuleName: '模拟预测',
                 FunctionName: predictionType.value,
-                Time: dayjs(timePlay.value).format('YYYY-MM-DD HH:mm:ss')
+                Time: formattedTime
             });
-            console.log('模拟预测',predictionType.value,dayjs(timePlay.value).format('YYYY-MM-DD HH:mm:ss'));
         }
     }
+    
+    // 如果当前时间等于最大值，停止播放
     if (currentTime.isSame(dayjs(max.value))) {
         activePlay.value = '';
     }
 });
+
 
 // 监听时间轴
 const gettimePlay = (e) => {
@@ -345,7 +355,7 @@ const shownextbar = computed(() => {
 });
 
 const myHandleResponseFunction = (data) => {
-    console.log(data);
+    // console.log(data);
     const datajson = JSON.parse(data);
     if (datajson.Function === '报错') {
         ElMessage({
@@ -353,7 +363,12 @@ const myHandleResponseFunction = (data) => {
             type: 'warning',
         });
         return
+    } else if (datajson.Function === '天气信息') {
+        showlonlat.value = false;
+        Data.value = datajson.Data;
+        showBottom.value = true;
     } else {
+        showlonlat.value = true;
         Datatime.value = datajson.DataTime;
         Lon.value = datajson.Lon;
         Lat.value = datajson.Lat;
@@ -435,8 +450,7 @@ onBeforeUnmount(() => {
     background-size: 100% 100%;
     background-repeat: no-repeat;
     width: 460px;
-    height: 300px;
-    top: 280px;
+    top: 320px;
     left: 15px;
 }
 
