@@ -17,9 +17,9 @@
           </div>
         </div>
         <div class="top-view-button-right">
-          <div style="margin-right: 90px;" class="top-view-button-style" :class="{ 'active': activeButton === '辅助决策' }"
-            @click="setActiveButton('辅助决策')">辅助决策
-            <div class="bottomurl" v-if="activeButton === '辅助决策'"></div>
+          <div style="margin-right: 90px;" class="top-view-button-style" :class="{ 'active': activeButton === '假设分析' }"
+            @click="setActiveButton('假设分析')">辅助决策
+            <div class="bottomurl" v-if="activeButton === '假设分析'"></div>
           </div>
           <div class="top-view-button-style" :class="{ 'active': activeButton === '风险评估' }"
             @click="setActiveButton('风险评估')">风险评估
@@ -37,7 +37,7 @@
     <div v-if="activeButton === '模拟预测'">
       <Rapidpredictions />
     </div>
-    <div v-if="activeButton === '辅助决策'">
+    <div v-if="activeButton === '假设分析'">
       <Whatifanalysis />
     </div>
   </div>

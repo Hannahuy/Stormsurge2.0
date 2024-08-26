@@ -368,7 +368,7 @@ const Tideinit = () => {
         },
         series: [
             {
-                type: 'bar', // 将类型改为 'bar'
+                type: 'line', // 将类型改为 'line'
                 name: '潮位',
                 data: tideyData.value,
                 itemStyle: {
@@ -384,7 +384,8 @@ const Tideinit = () => {
                         ],
                         global: false // 缺省为 false
                     }
-                }
+                },
+                smooth: true // 使曲线平滑
             }
         ],
         grid: { x: 35, y: 40, x2: 15, y2: 25 },
