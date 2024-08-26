@@ -112,7 +112,7 @@ const toggleBackground = (button) => {
         activeButton.value = null;
     } else {
         activeButton.value = button;
-        const name = button === 'wave' ? '海浪预测' : '潮位预测';
+        const name = button === 'wave' ? '海浪预测' : button === 'tide' ? '潮位预测' : '气象预测';
 
         showBottom.value = false; // 切换时隐藏
         if (button === 'wave') {
