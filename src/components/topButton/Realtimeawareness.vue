@@ -94,9 +94,7 @@ import { ElMessage } from 'element-plus'
 import imgshow from '../../assets/img/浮标.png'
 import imageshow from '../../assets/img/浮标 (1).png'
 import axios from 'axios'
-import { ElLoading } from 'element-plus'
 
-const loading = ref()
 const Tidedata = ref();
 const Wavedata = ref();
 const currentImage = ref(imageshow);
@@ -776,7 +774,6 @@ const get7DayWaveData = async () => {
                 });
                 leftbottom(); // 初始化图表
             }
-            loading.value.close();
             return
         })
         .catch(error => {
@@ -846,11 +843,6 @@ const forUEmessage = () => {
     });
 }
 onMounted(async () => {
-    loading.value = ElLoading.service({
-        lock: true,
-        text: '加载中...',
-        background: 'rgba(0, 0, 0, 0.7)',
-    })
     righttop();
     await getTidedata();
     await getLastWaveData();
