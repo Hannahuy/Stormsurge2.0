@@ -306,15 +306,17 @@ watch(timePlay, (newVal) => {
             isJumpingDay.value = false;
         } else {
             // 根据当前的 activeButton 来决定时间格式
-            const formattedTime = activeButton.value === 'weather' 
-                ? currentTime.format('YYYY-MM-DD-HH') 
+            const formattedTime = activeButton.value === 'weather'
+                ? currentTime.format('YYYY-MM-DD-HH')
                 : currentTime.format('YYYY-MM-DD HH:mm:ss');
-
-            callUIInteraction({
-                ModuleName: '模拟预测',
-                FunctionName: predictionType.value,
-                Time: formattedTime
-            });
+            // 延时0.5秒执行
+            setTimeout(() => {
+                callUIInteraction({
+                    ModuleName: '模拟预测',
+                    FunctionName: predictionType.value,
+                    Time: formattedTime
+                });
+            }, 500); // 500毫秒延时
         }
     }
     
