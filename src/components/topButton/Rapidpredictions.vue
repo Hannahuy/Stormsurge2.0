@@ -13,7 +13,7 @@
     </div>
     <div v-if="showBottom" class="leftbox-bottom">
         <div class="leftbox-top-title">
-            <span>{{ activeButton === 'wave' ? '海浪预测' : '潮位预测' }}</span>
+            <span>{{ activeButton === 'wave' ? '海浪预测' : activeButton === 'tide' ? '潮位预测' : '气象预测' }}</span>
         </div>
         <div id="WaveheightEcharts">
             <table class="custom-table">
